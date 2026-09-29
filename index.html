@@ -28,10 +28,38 @@
       image-rendering: pixelated;
       image-rendering: crisp-edges;
     }
+    /* 加载指示：游戏包较大，弱网下让用户知道"在加载"而不是白屏 */
+    #loading {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      color: #9ab8dd;
+      font-family: monospace;
+      font-size: 15px;
+      background: #1a1a2e;
+      z-index: 10;
+      transition: opacity 0.4s;
+    }
+    #loading .cat { font-size: 42px; animation: bob 1s ease-in-out infinite; }
+    @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
   </style>
-  <script type="module" crossorigin src="./assets/index-CVnUxeXd.js"></script>
+  <script type="module" crossorigin src="./assets/index-BQT_Djt4.js"></script>
 </head>
 <body>
   <div id="game-root"></div>
+  <div id="loading"><div class="cat">🐈</div><div>校园加载中…（首次打开约需几秒）</div></div>
+  <script>
+    // 游戏启动后由 main.ts 隐藏加载提示
+    window.__hideLoading = () => {
+      const el = document.getElementById('loading');
+      if (!el) return;
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 500);
+    };
+  </script>
 </body>
 </html>
