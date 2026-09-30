@@ -46,12 +46,47 @@
     }
     #loading .cat { font-size: 42px; animation: bob 1s ease-in-out infinite; }
     @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+    /* 竖屏提示：仅在「触摸设备 + 竖屏」下出现，桌面与横屏自动隐藏（不打扰电脑玩家）。
+       校猫日记是横版画面（世界 1536×896），竖屏只能看到约四分之一的宽度，体验明显打折。
+       做成可点关，玩家坚持竖屏也能继续玩。 */
+    #rotate-hint { display: none; }
+    @media (orientation: portrait) and (pointer: coarse) {
+      #rotate-hint {
+        display: flex;
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: #1a1a2e;
+        color: #e8d5b0;
+        font-family: monospace;
+        text-align: center;
+        padding: 28px;
+        cursor: pointer;
+      }
+      #rotate-hint .icon { font-size: 54px; animation: tilt 1.8s ease-in-out infinite; }
+      @keyframes tilt { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(-90deg); } }
+      #rotate-hint .title { font-size: 19px; letter-spacing: 1px; white-space: nowrap; }
+      #rotate-hint .sub { font-size: 13px; color: #9ab8dd; line-height: 1.8; white-space: nowrap; }
+      #rotate-hint .go { margin-top: 8px; font-size: 13px; color: #e8913a; white-space: nowrap; }
+    }
   </style>
-  <script type="module" crossorigin src="./assets/index-DanmhE81.js"></script>
+  <script type="module" crossorigin src="./assets/index-DpsB5KU9.js"></script>
 </head>
 <body>
   <div id="game-root"></div>
   <div id="loading"><div class="cat">🐈</div><div>校园加载中…（首次打开约需几秒）</div></div>
+  <div id="rotate-hint">
+    <div class="icon">📱</div>
+    <div class="title">横屏体验更佳</div>
+    <div class="sub">校猫日记是横版画面</div>
+    <div class="sub">把手机横过来，才能看全整条巷子</div>
+    <div class="go">仍要竖屏游玩 ›</div>
+  </div>
   <script>
     // 游戏启动后由 main.ts 隐藏加载提示
     window.__hideLoading = () => {
@@ -60,6 +95,11 @@
       el.style.opacity = '0';
       setTimeout(() => el.remove(), 500);
     };
+    // 竖屏提示：点任意处关闭。内联 display:none 优先级高于媒体查询，
+    // 关闭后本次会话不再弹出（刷新才会重新出现），玩家坚持竖屏也能玩下去。
+    document.getElementById('rotate-hint')?.addEventListener('click', function () {
+      this.style.display = 'none';
+    });
   </script>
 </body>
 </html>
