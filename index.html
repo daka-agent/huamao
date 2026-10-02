@@ -68,6 +68,7 @@
         padding: 28px;
         cursor: pointer;
       }
+      #rotate-hint .pane { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; }
       #rotate-hint .icon { font-size: 54px; animation: tilt 1.8s ease-in-out infinite; }
       @keyframes tilt { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(-90deg); } }
       #rotate-hint .title { font-size: 19px; letter-spacing: 1px; white-space: nowrap; }
@@ -89,15 +90,26 @@
   <div id="game-root"></div>
   <div id="loading"><div class="cat">🐈</div><div>校园加载中…（首次打开约需几秒）</div></div>
   <div id="rotate-hint">
-    <div class="icon">📱</div>
-    <div class="title">请选择游玩方向</div>
-    <div class="sub">校猫日记是横版画面</div>
-    <div class="sub">横屏才能看全整条巷子，竖屏只能看到一小块</div>
-    <div class="btns">
-      <button class="btn primary" id="btn-landscape">横屏游玩（推荐）</button>
-      <button class="btn" id="btn-portrait">仍要竖屏</button>
+    <div class="pane" id="pane-ask">
+      <div class="icon">📱</div>
+      <div class="title">请选择游玩方向</div>
+      <div class="sub">校猫日记是横版画面</div>
+      <div class="sub">横屏才能看全整条巷子，竖屏只能看到一小块</div>
+      <div class="btns">
+        <button class="btn primary" id="btn-landscape">我要横屏玩（推荐）</button>
+        <button class="btn" id="btn-portrait">仍要竖屏</button>
+      </div>
+      <div class="tip">点了「我要横屏玩」之后，需要你<b>把手机横过来</b>。<br>选「仍要竖屏」也能玩，只是视野较窄。</div>
     </div>
-    <div class="tip">选「横屏」后请把手机横过来；选「仍要竖屏」也能玩，只是视野较窄。</div>
+    <div class="pane" id="pane-wait" style="display:none">
+      <div class="icon">📱</div>
+      <div class="title">请把手机横过来</div>
+      <div class="sub">横过来后会自动开始，不用再点任何按钮</div>
+      <div class="tip">页面没法替你转屏幕，得手动转一下。<br>转不过来？多半是手机开了「方向锁定」，先关掉它。</div>
+      <div class="btns">
+        <button class="btn" id="btn-still-portrait">转不过来，仍要竖屏玩</button>
+      </div>
+    </div>
   </div>
   <script>
     // 游戏启动后由 main.ts 隐藏加载提示
@@ -111,19 +123,71 @@
     // 选择记在 sessionStorage，本次会话内不再反复弹出。
     (function () {
       var el = document.getElementById('rotate-hint');
+      var paneAsk = document.getElementById('pane-ask');
+      var paneWait = document.getElementById('pane-wait');
       if (!el) return;
       var KEY = 'daka-orient-choice';
       var choice = null;
       try { choice = sessionStorage.getItem(KEY); } catch (e) {}
       if (choice) el.style.display = 'none';
+
+      function isLandscape() { return window.innerWidth > window.innerHeight; }
+
+      var timer = null;
+      function stopWatch() { if (timer) { clearInterval(timer); timer = null; } }
       function hide(v) {
         el.style.display = 'none';
+        stopWatch();
         try { sessionStorage.setItem(KEY, v); } catch (e) {}
       }
+
+      // 网页无法替玩家转动屏幕：iOS 与微信内置浏览器完全不支持 screen.orientation.lock()，
+      // Android 部分支持但要先进入全屏。所以只能「尽力尝试 + 转不动就等玩家自己转」。
+      function tryLockLandscape() {
+        try {
+          var d = document.documentElement;
+          if (d.requestFullscreen) {
+            var p = d.requestFullscreen();
+            if (p && p.catch) p.catch(function () {});
+          }
+          if (screen.orientation && screen.orientation.lock) {
+            var q = screen.orientation.lock('landscape');
+            if (q && q.catch) q.catch(function () {});
+          }
+        } catch (e) {}
+      }
+
+      function onTurn() { if (isLandscape()) hide('landscape'); }
+      function watchLandscape() {
+        stopWatch();
+        // 轮询兜底：部分微信 webview 不派发 orientationchange / matchMedia change
+        timer = setInterval(onTurn, 250);
+        window.addEventListener('orientationchange', onTurn);
+        window.addEventListener('resize', onTurn);
+        if (window.matchMedia) {
+          var mq = window.matchMedia('(orientation: landscape)');
+          if (mq.addEventListener) mq.addEventListener('change', onTurn);
+          else if (mq.addListener) mq.addListener(onTurn);
+        }
+      }
+
+      function showWait() {
+        if (paneAsk) paneAsk.style.display = 'none';
+        if (paneWait) paneWait.style.display = 'flex';
+      }
+
       var bL = document.getElementById('btn-landscape');
       var bP = document.getElementById('btn-portrait');
-      if (bL) bL.addEventListener('click', function (e) { e.stopPropagation(); hide('landscape'); });
+      var bS = document.getElementById('btn-still-portrait');
+      if (bL) bL.addEventListener('click', function (e) {
+        e.stopPropagation();
+        tryLockLandscape();
+        if (isLandscape()) { hide('landscape'); return; }
+        showWait();          // 不再直接关掉遮罩，否则玩家点了没反应，以为坏了
+        watchLandscape();
+      });
       if (bP) bP.addEventListener('click', function (e) { e.stopPropagation(); hide('portrait'); });
+      if (bS) bS.addEventListener('click', function (e) { e.stopPropagation(); hide('portrait'); });
       // 已经选过之后再次转屏，也不要重新弹出来打扰
       window.addEventListener('orientationchange', function () {
         try { if (sessionStorage.getItem(KEY)) el.style.display = 'none'; } catch (e) {}
