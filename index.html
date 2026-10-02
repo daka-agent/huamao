@@ -110,6 +110,23 @@
         <button class="btn" id="btn-still-portrait">转不过来，仍要竖屏玩</button>
       </div>
     </div>
+    <!-- 微信内置浏览器专用：微信里横屏根本转不过来，不能让玩家卡在「请把手机横过来」的等待页上 -->
+    <div class="pane" id="pane-wx" style="display:none">
+      <div class="icon">📱</div>
+      <div class="title">微信里没法横屏</div>
+      <div class="sub">微信内置浏览器不支持网页横屏<br>横屏才能看全整条巷子，竖屏也能玩，只是视野窄</div>
+      <div class="btns">
+        <button class="btn primary" id="btn-wx-copy">复制链接，去浏览器打开</button>
+        <button class="btn" id="btn-wx-portrait">竖屏直接玩</button>
+      </div>
+      <div class="tip" id="wx-tip">
+        安卓：微信 → 我 → 设置 → 通用 → <b>开启横屏模式</b>，再打开系统的「自动旋转」。<br>
+        iPhone 微信没有这个开关，只能用浏览器打开。
+      </div>
+      <div class="sub" id="wx-copied" style="display:none;color:#e8913a">
+        链接已复制。点右上角「···」→ 在浏览器打开 → 粘贴访问。
+      </div>
+    </div>
   </div>
   <script>
     // 游戏启动后由 main.ts 隐藏加载提示
@@ -176,9 +193,56 @@
         if (paneWait) paneWait.style.display = 'flex';
       }
 
+      // ── 微信内置浏览器专用分支 ──────────────────────────────
+      // 微信里横屏这件事根本做不到：网页锁屏接口被 X5 内核屏蔽，iOS 版微信连横屏开关都没有。
+      // 所以微信内不能进「请把手机横过来」的等待页 —— 玩家永远等不到横屏事件，会直接卡死。
+      // 改给一条能走通的路：复制链接去浏览器打开；不想折腾就竖屏直接玩。
+      var paneWx = document.getElementById('pane-wx');
+      var isWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
+      if (isWeChat && paneWx) {
+        if (paneAsk) paneAsk.style.display = 'none';
+        paneWx.style.display = 'flex';
+        // 少数人开了微信横屏模式 + 系统自动旋转，真转过来了就自动放行
+        watchLandscape();
+      }
+
+      function copyLink() {
+        var url = location.href;
+        function done() {
+          if (bCopy) bCopy.textContent = '已复制，去浏览器打开';
+          var c = document.getElementById('wx-copied');
+          if (c) c.style.display = 'block';
+        }
+        function fallback() {
+          try {
+            var ta = document.createElement('textarea');
+            ta.value = url;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.top = '-1000px';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            done();
+          } catch (e) {
+            if (bCopy) bCopy.textContent = '复制失败，请手动复制地址栏';
+          }
+        }
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(done, fallback);
+            return;
+          }
+        } catch (e) {}
+        fallback();
+      }
+
       var bL = document.getElementById('btn-landscape');
       var bP = document.getElementById('btn-portrait');
       var bS = document.getElementById('btn-still-portrait');
+      var bCopy = document.getElementById('btn-wx-copy');
+      var bWxP = document.getElementById('btn-wx-portrait');
       if (bL) bL.addEventListener('click', function (e) {
         e.stopPropagation();
         tryLockLandscape();
@@ -188,6 +252,8 @@
       });
       if (bP) bP.addEventListener('click', function (e) { e.stopPropagation(); hide('portrait'); });
       if (bS) bS.addEventListener('click', function (e) { e.stopPropagation(); hide('portrait'); });
+      if (bCopy) bCopy.addEventListener('click', function (e) { e.stopPropagation(); copyLink(); });
+      if (bWxP) bWxP.addEventListener('click', function (e) { e.stopPropagation(); hide('portrait'); });
       // 已经选过之后再次转屏，也不要重新弹出来打扰
       window.addEventListener('orientationchange', function () {
         try { if (sessionStorage.getItem(KEY)) el.style.display = 'none'; } catch (e) {}
