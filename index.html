@@ -71,21 +71,33 @@
       #rotate-hint .icon { font-size: 54px; animation: tilt 1.8s ease-in-out infinite; }
       @keyframes tilt { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(-90deg); } }
       #rotate-hint .title { font-size: 19px; letter-spacing: 1px; white-space: nowrap; }
-      #rotate-hint .sub { font-size: 13px; color: #9ab8dd; line-height: 1.8; white-space: nowrap; }
-      #rotate-hint .go { margin-top: 8px; font-size: 13px; color: #e8913a; white-space: nowrap; }
+      #rotate-hint .sub { font-size: 13px; color: #9ab8dd; line-height: 1.8; }
+      #rotate-hint .tip { font-size: 12px; color: #7f93ad; line-height: 1.7; margin-top: 4px; }
+      #rotate-hint .btns { margin-top: 18px; display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 320px; }
+      #rotate-hint .btn {
+        font-family: monospace; font-size: 15px; padding: 12px 16px; border-radius: 10px;
+        border: 1px solid #e8913a; background: transparent; color: #e8913a; cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #rotate-hint .btn.primary { background: #e8913a; color: #1a1a2e; font-weight: bold; }
+      #rotate-hint .btn:active { transform: scale(0.98); }
     }
   </style>
-  <script type="module" crossorigin src="./assets/index-CqXZbVQl.js"></script>
+  <script type="module" crossorigin src="./assets/index-DKMRapY9.js"></script>
 </head>
 <body>
   <div id="game-root"></div>
   <div id="loading"><div class="cat">🐈</div><div>校园加载中…（首次打开约需几秒）</div></div>
   <div id="rotate-hint">
     <div class="icon">📱</div>
-    <div class="title">横屏体验更佳</div>
+    <div class="title">请选择游玩方向</div>
     <div class="sub">校猫日记是横版画面</div>
-    <div class="sub">把手机横过来，才能看全整条巷子</div>
-    <div class="go">仍要竖屏游玩 ›</div>
+    <div class="sub">横屏才能看全整条巷子，竖屏只能看到一小块</div>
+    <div class="btns">
+      <button class="btn primary" id="btn-landscape">横屏游玩（推荐）</button>
+      <button class="btn" id="btn-portrait">仍要竖屏</button>
+    </div>
+    <div class="tip">选「横屏」后请把手机横过来；选「仍要竖屏」也能玩，只是视野较窄。</div>
   </div>
   <script>
     // 游戏启动后由 main.ts 隐藏加载提示
@@ -95,11 +107,28 @@
       el.style.opacity = '0';
       setTimeout(() => el.remove(), 500);
     };
-    // 竖屏提示：点任意处关闭。内联 display:none 优先级高于媒体查询，
-    // 关闭后本次会话不再弹出（刷新才会重新出现），玩家坚持竖屏也能玩下去。
-    document.getElementById('rotate-hint')?.addEventListener('click', function () {
-      this.style.display = 'none';
-    });
+    // 竖屏提示：必须点按钮选择，点空白处不关闭（以前点任意处就消失，玩家来不及反应）。
+    // 选择记在 sessionStorage，本次会话内不再反复弹出。
+    (function () {
+      var el = document.getElementById('rotate-hint');
+      if (!el) return;
+      var KEY = 'daka-orient-choice';
+      var choice = null;
+      try { choice = sessionStorage.getItem(KEY); } catch (e) {}
+      if (choice) el.style.display = 'none';
+      function hide(v) {
+        el.style.display = 'none';
+        try { sessionStorage.setItem(KEY, v); } catch (e) {}
+      }
+      var bL = document.getElementById('btn-landscape');
+      var bP = document.getElementById('btn-portrait');
+      if (bL) bL.addEventListener('click', function (e) { e.stopPropagation(); hide('landscape'); });
+      if (bP) bP.addEventListener('click', function (e) { e.stopPropagation(); hide('portrait'); });
+      // 已经选过之后再次转屏，也不要重新弹出来打扰
+      window.addEventListener('orientationchange', function () {
+        try { if (sessionStorage.getItem(KEY)) el.style.display = 'none'; } catch (e) {}
+      });
+    })();
   </script>
 </body>
 </html>
