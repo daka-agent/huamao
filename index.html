@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>校猫日记</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #1a1a2e;
+      overflow: hidden;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    #game-root {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    canvas {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+    /* 加载指示：游戏包较大，弱网下让用户知道"在加载"而不是白屏 */
+    #loading {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      color: #9ab8dd;
+      font-family: monospace;
+      font-size: 15px;
+      background: #1a1a2e;
+      z-index: 10;
+      transition: opacity 0.4s;
+    }
+    #loading .cat { font-size: 42px; animation: bob 1s ease-in-out infinite; }
+    @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+    /* 竖屏提示：仅在「触摸设备 + 竖屏」下出现，桌面与横屏自动隐藏（不打扰电脑玩家）。
+       校猫日记是横版画面（世界 1536×896），竖屏只能看到约四分之一的宽度，体验明显打折。
+       做成可点关，玩家坚持竖屏也能继续玩。 */
+    #rotate-hint { display: none; }
+    @media (orientation: portrait) and (pointer: coarse) {
+      #rotate-hint {
+        display: flex;
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: #1a1a2e;
+        color: #e8d5b0;
+        font-family: monospace;
+        text-align: center;
+        padding: 28px;
+        cursor: pointer;
+      }
+      #rotate-hint .pane { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; }
+      #rotate-hint .icon { font-size: 54px; animation: tilt 1.8s ease-in-out infinite; }
+      @keyframes tilt { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(-90deg); } }
+      #rotate-hint .title { font-size: 19px; letter-spacing: 1px; white-space: nowrap; }
+      #rotate-hint .sub { font-size: 13px; color: #9ab8dd; line-height: 1.8; }
+      #rotate-hint .tip { font-size: 12px; color: #7f93ad; line-height: 1.7; margin-top: 4px; }
+      #rotate-hint .btns { margin-top: 18px; display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 320px; }
+      #rotate-hint .btn {
+        font-family: monospace; font-size: 15px; padding: 12px 16px; border-radius: 10px;
+        border: 1px solid #e8913a; background: transparent; color: #e8913a; cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #rotate-hint .btn.primary { background: #e8913a; color: #1a1a2e; font-weight: bold; }
+      #rotate-hint .btn:active { transform: scale(0.98); }
+    }
+  </style>
+  <script type="module" crossorigin src="./assets/index-GuwG6MMb.js"></script>
+</head>
+<body>
+  <div id="game-root"></div>
+  <div id="loading"><div class="cat">🐈</div><div>校园加载中…（首次打开约需几秒）</div></div>
+  <div id="rotate-hint">
+    <div class="pane" id="pane-ask">
+      <div class="icon">📱</div>
+      <div class="title">请选择游玩方向</div>
+      <div class="sub">校猫日记是横版画面</div>
+      <div class="sub">横屏才能看全整条巷子，竖屏只能看到一小块</div>
+      <div class="btns">
+        <button class="btn primary" id="btn-landscape">我要横屏玩（推荐）</button>
+        <button class="btn" id="btn-portrait">仍要竖屏</button>
+      </div>
+      <div class="tip">点了「我要横屏玩」之后，需要你<b>把手机横过来</b>。<br>选「仍要竖屏」也能玩，只是视野较窄。</div>
+    </div>
+    <div class="pane" id="pane-wait" style="display:none">
+      <div class="icon">📱</div>
+      <div class="title">请把手机横过来</div>
+      <div class="sub">横过来后会自动开始，不用再点任何按钮</div>
+      <div class="tip">页面没法替你转屏幕，得手动转一下。<br>转不过来？多半是手机开了「方向锁定」，先关掉它。</div>
+      <div class="btns">
+        <button class="btn" id="btn-still-portrait">转不过来，仍要竖屏玩</button>
+      </div>
+    </div>
+    <!-- 微信内置浏览器专用：微信里横屏根本转不过来，不能让玩家卡在「请把手机横过来」的等待页上 -->
+    <div class="pane" id="pane-wx" style="display:none">
+      <div class="icon">📱</div>
+      <div class="title">微信里没法横屏</div>
+      <div class="sub">微信内置浏览器不支持网页横屏<br>横屏才能看全整条巷子，竖屏也能玩，只是视野窄</div>
+      <div class="btns">
+        <button class="btn primary" id="btn-wx-copy">复制链接，去浏览器打开</button>
+        <button class="btn" id="btn-wx-portrait">竖屏直接玩</button>
+      </div>
+      <div class="tip" id="wx-tip">
+        安卓：微信 → 我 → 设置 → 通用 → <b>开启横屏模式</b>，再打开系统的「自动旋转」。<br>
+        iPhone 微信没有这个开关，只能用浏览器打开。
+      </div>
+      <div class="sub" id="wx-copied" style="display:none;color:#e8913a">
+        链接已复制。点右上角「···」→ 在浏览器打开 → 粘贴访问。
+      </div>
+    </div>
+  </div>
+  <script>
+    // 游戏启动后由 main.ts 隐藏加载提示
+    window.__hideLoading = () => {
+      const el = document.getElementById('loading');
+      if (!el) return;
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 500);
+    };
+    // 竖屏提示：必须点按钮选择，点空白处不关闭（以前点任意处就消失，玩家来不及反应）。
+    // 选择记在 sessionStorage，本次会话内不再反复弹出。
+    (function () {
+      var el = document.getElementById('rotate-hint');
+      var paneAsk = document.getElementById('pane-ask');
+      var paneWait = document.getElementById('pane-wait');
+      if (!el) return;
+      var KEY = 'daka-orient-choice';
+      var choice = null;
+      try { choice = sessionStorage.getItem(KEY); } catch (e) {}
+      if (choice) el.style.display = 'none';
+
+      function isLandscape() { return window.innerWidth > window.innerHeight; }
+
+      var timer = null;
+      function stopWatch() { if (timer) { clearInterval(timer); timer = null; } }
+      function hide(v) {
+        el.style.display = 'none';
+        stopWatch();
+        try { sessionStorage.setItem(KEY, v); } catch (e) {}
+      }
+
+      // 网页无法替玩家转动屏幕：iOS 与微信内置浏览器完全不支持 screen.orientation.lock()，
+      // Android 部分支持但要先进入全屏。所以只能「尽力尝试 + 转不动就等玩家自己转」。
+      function tryLockLandscape() {
+        try {
+          var d = document.documentElement;
+          if (d.requestFullscreen) {
+            var p = d.requestFullscreen();
+            if (p && p.catch) p.catch(function () {});
+          }
+          if (screen.orientation && screen.orientation.lock) {
+            var q = screen.orientation.lock('landscape');
+            if (q && q.catch) q.catch(function () {});
+          }
+        } catch (e) {}
+      }
+
+      function onTurn() { if (isLandscape()) hide('landscape'); }
+      function watchLandscape() {
+        stopWatch();
+        // 轮询兜底：部分微信 webview 不派发 orientationchange / matchMedia change
+        timer = setInterval(onTurn, 250);
+        window.addEventListener('orientationchange', onTurn);
+        window.addEventListener('resize', onTurn);
+        if (window.matchMedia) {
+          var mq = window.matchMedia('(orientation: landscape)');
+          if (mq.addEventListener) mq.addEventListener('change', onTurn);
+          else if (mq.addListener) mq.addListener(onTurn);
+        }
+      }
+
+      function showWait() {
+        if (paneAsk) paneAsk.style.display = 'none';
+        if (paneWait) paneWait.style.display = 'flex';
+      }
+
+      // ── 微信内置浏览器专用分支 ──────────────────────────────
+      // 微信里横屏这件事根本做不到：网页锁屏接口被 X5 内核屏蔽，iOS 版微信连横屏开关都没有。
+      // 所以微信内不能进「请把手机横过来」的等待页 —— 玩家永远等不到横屏事件，会直接卡死。
+      // 改给一条能走通的路：复制链接去浏览器打开；不想折腾就竖屏直接玩。
+      var paneWx = document.getElementById('pane-wx');
+      var isWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
+      if (isWeChat && paneWx) {
+        if (paneAsk) paneAsk.style.display = 'none';
+        paneWx.style.display = 'flex';
+        // 少数人开了微信横屏模式 + 系统自动旋转，真转过来了就自动放行
+        watchLandscape();
+      }
+
+      function copyLink() {
+        var url = location.href;
+        function done() {
+          if (bCopy) bCopy.textContent = '已复制，去浏览器打开';
+          var c = document.getElementById('wx-copied');
+          if (c) c.style.display = 'block';
+        }
+        function fallback() {
+          try {
+            var ta = document.createElement('textarea');
+            ta.value = url;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.top = '-1000px';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            done();
+          } catch (e) {
+            if (bCopy) bCopy.textContent = '复制失败，请手动复制地址栏';
+          }
+        }
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(done, fallback);
+            return;
+          }
+        } catch (e) {}
+        fallback();
+      }
+
+      var bL = document.getElementById('btn-landscape');
+      var bP = document.getElementById('btn-portrait');
+      var bS = document.getElementById('btn-still-portrait');
+      var bCopy = document.getElementById('btn-wx-copy');
+      var bWxP = document.getElementById('btn-wx-portrait');
+      if (bL) bL.addEventListener('click', function (e) {
+        e.stopPropagation();
+        tryLockLandscape();
+        if (isLandscape()) { hide('landscape'); return; }
+        showWait();          // 不再直接关掉遮罩，否则玩家点了没反应，以为坏了
+        watchLandscape();
+      });
+      if (bP) bP.addEventListener('click', function (e) { e.stopPropagation(); hide('portrait'); });
+      if (bS) bS.addEventListener('click', function (e) { e.stopPropagation(); hide('portrait'); });
+      if (bCopy) bCopy.addEventListener('click', function (e) { e.stopPropagation(); copyLink(); });
+      if (bWxP) bWxP.addEventListener('click', function (e) { e.stopPropagation(); hide('portrait'); });
+      // 已经选过之后再次转屏，也不要重新弹出来打扰
+      window.addEventListener('orientationchange', function () {
+        try { if (sessionStorage.getItem(KEY)) el.style.display = 'none'; } catch (e) {}
+      });
+    })();
+  </script>
+</body>
+</html>
